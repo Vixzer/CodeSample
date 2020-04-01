@@ -1,0 +1,74 @@
+# frozen_string_literal: true
+
+describe 'Parameters APIs', :parameter, :regression do
+  exists_uri = '/api/v1/'"#{Payloads::Context::DEFAULT_CODE}"'/parameters'
+  payload_create = Payloads::Parameter::CREATE.to_json
+
+  header = { 'Authorization' => "Bearer #{OAuth.new.oauth_token_user}" }
+
+  context 'when creating a new parameter', :parameter_post, :post do
+    response = UrlLogin.post(exists_uri, body: payload_create, headers: header)
+
+    it 'must answer with 201' do
+      expect(response.code).to eq 201
+    end
+
+    it 'must come with the id not null' do
+      expect(JSON.parse(response.body)['id']).to be > 0
+    end
+  end
+
+  context 'when creating an existing parameter', :parameter_post, :post do
+    response = UrlLogin.post(exists_uri, body: payload_create, headers: header)
+
+    it 'must answer with 422' do
+      expect(response.code).to eq 422
+    end
+
+    body = JSON.parse(response.body)
+    it 'must return the error type UNPROCESSABLE_ENTITY' do
+      expect(body['error']).to eq 'UNPROCESSABLE_ENTITY'
+    end
+
+    it 'must return a detailed error message' do
+      expected_msg = "Parameter already exists in the context: #{Payloads::Context::DEFAULT_CODE} with code: #{Payloads::Parameter::CREATE_CODE}!"
+      expect(body['message']).to include(expected_msg)
+    end
+  end
+
+  context 'when listing parameters', :parameter_get, :get do
+    response = UrlLogin.get(exists_uri, headers: header)
+
+    it 'it must answer with 200' do
+      expect(response.code).to eq 200
+    end
+
+    it 'must return a saved list' do
+      data = response.parsed_response
+      params = data.find { |i| i['code'] == Payloads::Parameter::DEFAULT_CODE }
+      expect(params).not_to be_nil
+    end
+  end
+
+  context 'when editing a parameter', :parameter_put, :put do
+    param_id = Payloads::Parameter::ALREADY_EXISTS_ID_EDIT
+    response = UrlLogin.put("#{exists_uri}/#{param_id}", body: Payloads::Parameter::UPDATE.to_json, headers: header)
+    it 'must answer with 200' do
+      expect(response.code).to eq 200
+    end
+
+    response_body = JSON.parse(response.body)
+    it 'must return with the same id entered before' do
+      expect(response_body['id']).to eq param_id
+    end
+
+    it 'must have updated the code' do
+      expect(response_body['code']).to eq Payloads::Parameter::EDITED_CODE
+    end
+
+    it 'must have updated the description' do
+      expected_description = Payloads::Parameter::EDITED_DESCRIPTION
+      expect(response_body['description']).to eq expected_description
+    end
+  end
+end
